@@ -12,10 +12,10 @@ from tap_dynamodb.deserialize import Deserializer
 LOGGER = singer.get_logger()
 
 
-def scan_table(table_name, projection, last_evaluated_key, config, inf_rcrds_num=None):
+def scan_table(table_name, projection, last_evaluated_key, config, schema_inf=False):
     scan_params = {
         'TableName': table_name,
-        'Limit': inf_rcrds_num if inf_rcrds_num else 1000
+        'Limit': config['num_inference_records'] if schema_inf else 1000
     }
 
     if projection is not None and projection != '':

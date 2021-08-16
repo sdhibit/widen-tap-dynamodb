@@ -29,6 +29,8 @@ class TapDynamoDB(Tap):
 
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams (i.e., DynamoDB tables for the given account and region)."""
+        if not self.config.get('use_local_dynamo'):
+            dynamodb.setup_aws_client(self.config)
         client = dynamodb.get_client(self.config)
 
         try:
@@ -38,10 +40,6 @@ class TapDynamoDB(Tap):
                             "policy are configured correctly on your AWS account.")
 
         table_list = response.get('TableNames')
-
-        while response.get('LastEvaluatedTableName') is not None:
-            response = client.list_tables(ExclusiveStartTableName=response.get('LastEvaluatedTableName'))
-            table_list += response.get('TableNames')
 
         streams = [x for x in
                    (self.discover_table_schema(client, table) for table in table_list)
@@ -58,9 +56,11 @@ class TapDynamoDB(Tap):
 
         # write stream metadata
         key_props = [key_schema.get('AttributeName') for key_schema in table_info.get('KeySchema', [])]
-        results = scan_table(table_name, None, None, self.config, self.config['num_inference_records'])
+        results = scan_table(table_name, None, None, self.config, True)
+        # raise ValueError(f'PRINTING THIS:  \n{next(results)}')
 
         schema = th.PropertiesList().to_dict()
+        i = 0
         for result in results:
             for item in result.get('Items', []):
                 record = Deserializer().deserialize_item(item)
@@ -71,6 +71,11 @@ class TapDynamoDB(Tap):
                 flat_record = flatten_json(record, self.config.get('except_keys', []))
                 new_schema = _do_infer_schema(flat_record)
                 schema = merge_schemas(schema, new_schema.to_dict())
+
+            if i > self.config.get('num_inference_records', 50):
+                break
+            else:
+                i += 1
 
         return DynamicStream(
             tap=self,

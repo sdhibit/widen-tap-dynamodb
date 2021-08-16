@@ -1,6 +1,6 @@
 version: 1
 send_anonymous_usage_stats: true
-project_id: tap-dynamodb
+project_id: 541d51ef-5204-495a-9358-4b1394c8577e
 plugins:
   extractors:
   - name: tap-dynamodb
@@ -10,16 +10,16 @@ plugins:
     - state
     - catalog
     - discover
-    config:
-      region_name:
-      account_id:
-      external_id:
-      role_name:
     settings:
     - name: region_name
     - name: account_id
     - name: external_id
     - name: role_name
+    config:
+      region_name:
+      account_id:
+      external_id:
+      role_name:
   loaders:
   - name: target-jsonl
     variant: andyh1203
