@@ -5,11 +5,10 @@ from typing import List
 from botocore.exceptions import ClientError
 from singer_sdk import Tap, Stream
 from singer_sdk import typing as th
-from singer import metadata
 
 from tap_dynamodb.streams import DynamicStream
 from tap_dynamodb import dynamodb
-from tap_dynamodb.schema import flatten_json, _do_infer_schema, _is_datetime, update_dict, merge_schemas
+from tap_dynamodb.schema import flatten_json, infer_schema, merge_schemas
 from tap_dynamodb.sync_strategies.full_table import scan_table
 from tap_dynamodb.deserialize import Deserializer
 
@@ -25,6 +24,7 @@ class TapDynamoDB(Tap):
         th.Property("role_name", th.StringType, required=True),
         th.Property("use_local_dynamo", th.BooleanType, default=False, required=False),
         th.Property('num_inference_records', th.NumberType, default=50, required=False),
+        th.Property('tables_to_discover', th.ArrayType(th.StringType), default=[], required=False),
     ).to_dict()
 
     def discover_streams(self) -> List[Stream]:
@@ -39,7 +39,8 @@ class TapDynamoDB(Tap):
             raise Exception("Authorization to AWS failed. Please ensure the role and "
                             "policy are configured correctly on your AWS account.")
 
-        table_list = response.get('TableNames')
+        config_table_list = self.config.get('tables_to_discover')
+        table_list = config_table_list if config_table_list else response.get('TableNames')
 
         streams = [x for x in
                    (self.discover_table_schema(client, table) for table in table_list)
@@ -57,11 +58,10 @@ class TapDynamoDB(Tap):
         # write stream metadata
         key_props = [key_schema.get('AttributeName') for key_schema in table_info.get('KeySchema', [])]
         results = scan_table(table_name, None, None, self.config, True)
-        # raise ValueError(f'PRINTING THIS:  \n{next(results)}')
 
         schema = th.PropertiesList().to_dict()
-        i = 0
         for result in results:
+            i = 0
             for item in result.get('Items', []):
                 record = Deserializer().deserialize_item(item)
 
@@ -69,18 +69,19 @@ class TapDynamoDB(Tap):
                     raise ValueError("Input must be a dict object.")
 
                 flat_record = flatten_json(record, self.config.get('except_keys', []))
-                new_schema = _do_infer_schema(flat_record)
+                new_schema = infer_schema(flat_record)
                 schema = merge_schemas(schema, new_schema.to_dict())
 
-            if i > self.config.get('num_inference_records', 50):
-                break
-            else:
                 i += 1
+                if i > self.config.get('num_inference_records', 50):
+                    break
+            break
 
         return DynamicStream(
             tap=self,
             name=table_name,
             primary_keys=key_props,
             replication_key=None,
-            schema=schema
+            schema=schema,
+            client=client
         )

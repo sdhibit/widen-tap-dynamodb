@@ -1,6 +1,7 @@
 import datetime
 import simplejson as json
 import re
+import decimal
 
 from singer_sdk import typing as th
 
@@ -38,7 +39,7 @@ def update_dict(d1: dict, d2: dict) -> dict:
 """Heavy borrowing from git repo anelendata/getschema"""
 
 
-def _is_datetime(obj):
+def is_datetime(obj):
     """Determine if an object is a datetime or not."""
     # TODO: This is a very loose regex for date-time.
     return (
@@ -48,14 +49,14 @@ def _is_datetime(obj):
     )
 
 
-def _do_infer_schema(obj):
+def infer_schema(obj):
     """Recursively construct a singer schema based on a provided schema using singer types."""
     if obj is None:
         schema = None
     elif type(obj) is dict and obj.keys():
         object_properties_list = []
         for key in obj.keys():
-            ret = _do_infer_schema(obj[key])
+            ret = infer_schema(obj[key])
             if ret:
                 object_properties_list.append(th.Property(key, ret, required=False))
 
@@ -63,7 +64,7 @@ def _do_infer_schema(obj):
 
     elif type(obj) is list:
         if len(obj):
-            ret = _do_infer_schema(obj[0])
+            ret = infer_schema(obj[0])
             schema = th.ArrayType(ret)
         else:
             schema = None  # should be th.ArrayType(), but can't be empty
@@ -72,12 +73,14 @@ def _do_infer_schema(obj):
             float(obj)
         except (ValueError, TypeError):
             schema = th.StringType
-            if _is_datetime(obj):
+            if is_datetime(obj):
                 schema = th.DateTimeType
         else:
             if type(obj) == bool:
                 schema = th.BooleanType
             elif type(obj) == float:  # or (type(obj) == str and "." in obj)
+                schema = th.NumberType
+            elif type(obj) == decimal.Decimal:
                 schema = th.NumberType
             # Let's assume it's a code such as zipcode if there is a leading 0
             elif type(obj) == int:  # or (type(obj) == str and obj[0] != "0")
