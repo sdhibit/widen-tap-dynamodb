@@ -19,6 +19,7 @@ class DynamicStream(DynamoDBStream):
                  except_keys=None,
                  records_path=None,
                  schema=None,
+                 client=None,
                  ):
         super().__init__(tap=tap, name=tap.name, schema=schema)
         if primary_keys is None:
@@ -29,4 +30,4 @@ class DynamicStream(DynamoDBStream):
         self.replication_key = replication_key
         self.except_keys = except_keys
         self.records_path = records_path
-
+        self.client = client

@@ -3,16 +3,11 @@ Taken heavily from https://github.com/singer-io/tap-dynamodb/blob/master/tap_dyn
 """
 
 import datetime
-from singer import metadata
 import singer
 
 from tap_dynamodb import dynamodb
-from tap_dynamodb import deserialize
 
-LOGGER = singer.get_logger()
 WRITE_STATE_PERIOD = 1000
-
-SDC_DELETED_AT = "_sdc_deleted_at"
 
 
 def get_shards(streams_client, stream_arn):
@@ -79,119 +74,6 @@ def get_shard_records(streams_client, stream_arn, shard, sequence_number):
         shard_iterator = records.get('NextShardIterator')
 
 
-def sync_shard(
-        shard, seq_number_bookmarks, streams_client, stream_arn,
-        projection, deserializer, table_name, stream_version, state
-):
-    seq_number = seq_number_bookmarks.get(shard['ShardId'])
-
-    rows_synced = 0
-
-    for record in get_shard_records(streams_client, stream_arn, shard, seq_number):
-        if record['eventName'] == 'REMOVE':
-            record_message = deserializer.deserialize_item(record['dynamodb']['Keys'])
-            record_message[SDC_DELETED_AT] = singer.utils.strftime(record['dynamodb']['ApproximateCreationDateTime'])
-        else:
-            record_message = deserializer.deserialize_item(record['dynamodb'].get('NewImage'))
-            if record_message is None:
-                LOGGER.fatal('Dynamo stream view type must be either "NEW_IMAGE" "NEW_AND_OLD_IMAGES"')
-                raise RuntimeError('Dynamo stream view type must be either "NEW_IMAGE" "NEW_AND_OLD_IMAGES"')
-            if projection is not None and projection != '':
-                try:
-                    record_message = deserializer.apply_projection(record_message, projection)
-                except:
-                    LOGGER.fatal("Projection failed to apply: %s", projection)
-                    raise RuntimeError('Projection failed to apply: {}'.format(projection))
-
-        record_message = singer.RecordMessage(stream=table_name,
-                                              record=record_message,
-                                              version=stream_version)
-        singer.write_message(record_message)
-
-        rows_synced += 1
-
-        seq_number_bookmarks[shard['ShardId']] = record['dynamodb']['SequenceNumber']
-        state = singer.write_bookmark(state, table_name, 'shard_seq_numbers', seq_number_bookmarks)
-
-        # Every 100 rows write the state
-        if rows_synced % 100 == 0:
-            singer.write_state(state)
-
-    singer.write_state(state)
-    return rows_synced
-
-
-def sync(config, state, stream):
-    table_name = stream['tap_stream_id']
-
-    client = dynamodb.get_client(config)
-    streams_client = dynamodb.get_stream_client(config)
-
-    md_map = metadata.to_map(stream['metadata'])
-    projection = metadata.get(md_map, (), 'tap-mongodb.projection')
-    if projection is not None:
-        projection = [x.strip().split('.') for x in projection.split(',')]
-
-    # Write activate version message
-    stream_version = singer.get_bookmark(state, table_name, 'version')
-    singer.write_version(table_name, stream_version)
-
-    table = client.describe_table(TableName=table_name)['Table']
-    stream_arn = table['LatestStreamArn']
-
-    # Stores a dictionary of shardId : sequence_number for a shard. Should
-    # only store sequence numbers for closed shards that have not been
-    # fully synced
-    seq_number_bookmarks = singer.get_bookmark(state, table_name, 'shard_seq_numbers')
-    if not seq_number_bookmarks:
-        seq_number_bookmarks = dict()
-
-    # Get the list of closed shards which we have fully synced. These
-    # are removed after performing a sync and not seeing the shardId
-    # returned by get_shards() because at that point the shard has been
-    # killed by DynamoDB and will not be returned anymore
-    finished_shard_bookmarks = singer.get_bookmark(state, table_name, 'finished_shards')
-    if not finished_shard_bookmarks:
-        finished_shard_bookmarks = list()
-
-    # The list of shardIds we found this sync. Is used to determine which
-    # finished_shard_bookmarks to kill
-    found_shards = []
-
-    deserializer = deserialize.Deserializer()
-
-    rows_synced = 0
-
-    for shard in get_shards(streams_client, stream_arn):
-        found_shards.append(shard['ShardId'])
-        # Only sync shards which we have not fully synced already
-        if shard['ShardId'] not in finished_shard_bookmarks:
-            rows_synced += sync_shard(shard, seq_number_bookmarks,
-                                      streams_client, stream_arn, projection, deserializer,
-                                      table_name, stream_version, state)
-
-        # Now that we have fully synced the shard, move it from the
-        # shard_seq_numbers to finished_shards.
-        finished_shard_bookmarks.append(shard['ShardId'])
-        state = singer.write_bookmark(state, table_name, 'finished_shards', finished_shard_bookmarks)
-
-        if seq_number_bookmarks.get(shard['ShardId']):
-            seq_number_bookmarks.pop(shard['ShardId'])
-            state = singer.write_bookmark(state, table_name, 'shard_seq_numbers', seq_number_bookmarks)
-
-        singer.write_state(state)
-
-    for shardId in finished_shard_bookmarks:
-        if shardId not in found_shards:
-            # Remove this shard because its no longer appearing when we query for get_shards
-            finished_shard_bookmarks.remove(shardId)
-            state = singer.write_bookmark(state, table_name, 'finished_shards', finished_shard_bookmarks)
-
-    singer.write_state(state)
-
-    return rows_synced
-
-
 def has_stream_aged_out(state, table_name):
     """
     Uses the success_timestamp on the stream to determine if we have
@@ -222,9 +104,6 @@ def get_initial_bookmarks(config, state, table_name):
     Returns the state including all bookmarks necessary for the initial
     full table sync
     """
-    # TODO This can be improved by getting the max sequence number in the
-    # open shards and include those in the seq_number bookmark
-
     client = dynamodb.get_client(config)
     streams_client = dynamodb.get_stream_client(config)
 

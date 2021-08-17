@@ -84,5 +84,4 @@ def get_stream_client(config):
         return boto3.client('dynamodbstreams',
                             endpoint_url='http://localhost:8000',
                             region_name=config['region_name'])
-    return boto3.client('dynamodbstreams',
-                        region_name=config['region_name'])
+    return boto3.client('dynamodbstreams', region_name=config['region_name'])
