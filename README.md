@@ -35,6 +35,11 @@ tap is available by running:
 tap-dynamodb --about
 ```
 
+Two replication methods are available for this tap `FULL_TABLE` and `LOG_BASED`. 
+At this time the `LOG_BASED` has not been tested, but it does require that a stream be
+enabled for the desired DynamoDB table and that a `replication-key` be provided in the 
+`metadata` settings.
+
 ### Source Authentication and Authorization
 
 See the [AWS docs](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)
