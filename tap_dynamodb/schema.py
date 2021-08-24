@@ -95,7 +95,7 @@ def flatten_json(y, except_keys=None):
     if not except_keys:
         except_keys = []
 
-    def t(s):
+    def t(s: str) -> str:
         translation_table = s.maketrans('-.', '__')
         return s.translate(translation_table)
 

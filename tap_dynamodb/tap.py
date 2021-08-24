@@ -59,10 +59,12 @@ class TapDynamoDB(Tap):
         key_props = [key_schema.get('AttributeName') for key_schema in table_info.get('KeySchema', [])]
         results = scan_table(table_name, None, None, self.config, True)
 
+        orig_projection = ''
         schema = th.PropertiesList().to_dict()
         for result in results:
             i = 0
             for item in result.get('Items', []):
+                orig_projection = ",".join(item.keys())
                 record = Deserializer().deserialize_item(item)
 
                 if type(record) is not dict:
@@ -83,5 +85,6 @@ class TapDynamoDB(Tap):
             primary_keys=key_props,
             replication_key=None,
             schema=schema,
-            client=client
+            client=client,
+            orig_projection=orig_projection,
         )

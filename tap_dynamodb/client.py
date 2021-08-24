@@ -11,6 +11,7 @@ from singer_sdk.streams import Stream
 from tap_dynamodb.sync_strategies import full_table, log_based
 from tap_dynamodb.deserialize import Deserializer
 from tap_dynamodb import dynamodb
+from tap_dynamodb.schema import flatten_json
 
 
 class DynamoDBStream(Stream):
@@ -46,21 +47,13 @@ class DynamoDBStream(Stream):
         else:
             self.logger.info(f'Unknown replication method: {self.replication_method} for stream: {self.name}')
 
-    def get_projection(self):
-        projection = ''
-        for attr in self.schema["properties"].keys():
-            if projection == '':
-                projection += attr
-            else:
-                projection += "," + attr
-        return projection
-
     def full_table_get_records(self):
-        results = full_table.scan_table(self.name, self.get_projection(), None, self.config, False)
+        results = full_table.scan_table(self.name, self.orig_projection, None, self.config, False)
         for result in results:
             for item in result.get('Items', []):
                 record = Deserializer().deserialize_item(item)
-                yield record
+                flat_record = flatten_json(record, self.config.get('except_keys', []))
+                yield flat_record
 
     def log_based_get_records(self):
         table_name = self.name
@@ -106,7 +99,7 @@ class DynamoDBStream(Stream):
             # Only sync shards which we have not fully synced already
             if shard['ShardId'] not in finished_shard_bookmarks:
                 records = self.process_shard(shard, seq_number_bookmarks, streams_client, stream_arn,
-                                             self.get_projection(), deserializer,
+                                             self.orig_projection, deserializer,
                                              table_name, state)
                 for record in records:
                     yield record
