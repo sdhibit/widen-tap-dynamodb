@@ -19,9 +19,9 @@ class TapDynamoDB(Tap):
 
     config_jsonschema = th.PropertiesList(
         th.Property("region_name", th.StringType, required=True),
-        th.Property("account_id", th.StringType, required=True),
-        th.Property("external_id", th.StringType, required=True),
-        th.Property("role_name", th.StringType, required=True),
+        th.Property("account_id", th.StringType, required=False),
+        th.Property("external_id", th.StringType, required=False),
+        th.Property("role_name", th.StringType, required=False),
         th.Property("use_local_dynamo", th.BooleanType, default=False, required=False),
         th.Property('num_inference_records', th.NumberType, default=50, required=False),
         th.Property('tables_to_discover', th.ArrayType(th.StringType), default=[], required=False),
@@ -88,3 +88,5 @@ class TapDynamoDB(Tap):
             client=client,
             orig_projection=orig_projection,
         )
+
+    def validate_config(self, config, schema) -> bool:
