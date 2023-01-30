@@ -46,29 +46,37 @@ class AssumeRoleProvider:
 
 @retry_pattern()
 def setup_aws_client(config):
-    role_arn = f"arn:aws:iam::{config['account_id'].replace('-', '')}:role/{config['role_name']}"
+    assume_role_keys = ['account_id', 'external_id', 'role_name']
 
-    session = Session()
-    fetcher = AssumeRoleCredentialFetcher(
-        session.create_client,
-        session.get_credentials(),
-        role_arn,
-        extra_args={
-            'DurationSeconds': 3600,
-            'RoleSessionName': 'TapDynamodDB',
-            'ExternalId': config['external_id']
-        },
-        cache=JSONFileCache()
-    )
+    if set(assume_role_keys).issubset(set(config.keys())):
+        role_arn = f"arn:aws:iam::{config['account_id'].replace('-', '')}:role/{config['role_name']}"
 
-    refreshable_session = Session()
-    refreshable_session.register_component(
-        'credential_provider',
-        CredentialResolver([AssumeRoleProvider(fetcher)])
-    )
+        session = Session()
+        fetcher = AssumeRoleCredentialFetcher(
+            session.create_client,
+            session.get_credentials(),
+            role_arn,
+            extra_args={
+                'DurationSeconds': 3600,
+                'RoleSessionName': 'TapDynamodDB',
+                'ExternalId': config['external_id']
+            },
+            cache=JSONFileCache()
+        )
 
-    LOGGER.info(f"Attempting to assume_role on RoleArn: {role_arn}")
-    boto3.setup_default_session(botocore_session=refreshable_session)
+        refreshable_session = Session()
+        refreshable_session.register_component(
+            'credential_provider',
+            CredentialResolver([AssumeRoleProvider(fetcher)])
+        )
+
+        LOGGER.info(f"Attempting to assume_role on RoleArn: {role_arn}")
+        boto3.setup_default_session(botocore_session=refreshable_session)
+    else:
+        session = Session()
+
+        LOGGER.info("Using default AWS session")
+        boto3.setup_default_session(botocore_session=session)
 
 
 def get_client(config):

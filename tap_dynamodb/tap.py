@@ -12,20 +12,37 @@ from tap_dynamodb.schema import flatten_json, infer_schema, merge_schemas
 from tap_dynamodb.sync_strategies.full_table import scan_table
 from tap_dynamodb.deserialize import Deserializer
 
+def _merge_dicts(*dict_args):
+    """
+    Given any number of dictionaries, shallow copy and merge into a new dict,
+    precedence goes to key-value pairs in latter dictionaries.
+    """
+    result = {}
+    for dictionary in dict_args:
+        result.update(dictionary)
+    return result
 
 class TapDynamoDB(Tap):
     """DynamoDB tap class."""
+    jsonschema_additional_dict = {
+        "dependentRequired": {
+            "account_id": ["external_id", "role_arn"],
+            "external_id": ["account_id", "role_arn"],
+            "role_arn": ["account_id", "external_id"]
+        }
+    }
+
     name = "tap-dynamodb"
 
-    config_jsonschema = th.PropertiesList(
+    config_jsonschema = _merge_dicts(jsonschema_additional_dict, th.PropertiesList(
         th.Property("region_name", th.StringType, required=True),
-        th.Property("account_id", th.StringType, required=True),
-        th.Property("external_id", th.StringType, required=True),
-        th.Property("role_name", th.StringType, required=True),
+        th.Property("account_id", th.StringType, required=False),
+        th.Property("external_id", th.StringType, required=False),
+        th.Property("role_name", th.StringType, required=False),
         th.Property("use_local_dynamo", th.BooleanType, default=False, required=False),
         th.Property('num_inference_records', th.NumberType, default=50, required=False),
         th.Property('tables_to_discover', th.ArrayType(th.StringType), default=[], required=False),
-    ).to_dict()
+    ).to_dict())
 
     def discover_streams(self) -> List[Stream]:
         """Return a list of discovered streams (i.e., DynamoDB tables for the given account and region)."""

@@ -15,13 +15,13 @@ once your `meltano.yml` is properly configured.
 
 The following Settings are required
 - `region_name`: str: The name of the AWS region that the target DynamoDB table resides in.
+
+The following Settings are optional
 - `account_id`: str: The AWS account id (number) that the target DynamoDB table resides in.
 - `external_id`: str: The external id required to assume the target role. See the [AWS docs](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)
   for instructions on how to set this up.
 - `role_name`: str: the name of the IAM role in the target AWS account that will be used for 
   querying DynamoDB.
-
-The following Settings are optional
 - `use_local_dynamo`: bool: Whether or not to use `https` protocol for accessing the DynamoDB table.
 - `num_inference_records`: number: The number of records used to infer a DynamoDB table's schema
 - `tables_to_discover`: list of strings: The DynamoDB tables that are to be used to create streams for.
@@ -44,7 +44,6 @@ enabled for the desired DynamoDB table and that a `replication-key` be provided 
 
 See the [AWS docs](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html)
 for instructions on how to set up IAM permissions to access DynamoDB.
-
 
 ## Usage
 
