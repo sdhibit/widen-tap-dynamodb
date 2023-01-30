@@ -25,7 +25,7 @@ def _merge_dicts(*dict_args):
 class TapDynamoDB(Tap):
     """DynamoDB tap class."""
     jsonschema_additional_dict = {
-        "dependentRequired": {
+        "dependencies": {
             "account_id": ["external_id", "role_arn"],
             "external_id": ["account_id", "role_arn"],
             "role_arn": ["account_id", "external_id"]
