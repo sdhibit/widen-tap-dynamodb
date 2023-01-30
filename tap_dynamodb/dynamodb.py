@@ -48,7 +48,7 @@ class AssumeRoleProvider:
 def setup_aws_client(config):
     assume_role_keys = ['account_id', 'external_id', 'role_name']
 
-    if assume_role_keys.issubset(config.keys()):
+    if set(assume_role_keys).issubset(set(config.keys())):
         role_arn = f"arn:aws:iam::{config['account_id'].replace('-', '')}:role/{config['role_name']}"
 
         session = Session()
